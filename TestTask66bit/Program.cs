@@ -1,37 +1,56 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Reflection;
 using System.IO;
+using System.Linq;
 
 namespace TestTask66bit
 {
-    class Program
+    static class Program
     {
-        static void Main(string[] args)
+        static void Main()
         {
-            string path = @"E:\NET\Repos\Iskra\Aistenok\bin\Debug";
+            Console.Write("Enter the path to the directory with the dll Assembly: ");
+            string path = Console.ReadLine();
+            if (!string.IsNullOrEmpty(path))
+            {
+                try
+                {
+                    string[] fileNames = Directory.GetFiles(path, "*.dll");
+                    PrintInfoToConsole(fileNames);
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine(e.Message + "\n" + e.StackTrace + "\n" + e.Source);
+                }
+            }
+            else
+            {
+                Console.WriteLine("The file path cannot be empty");
+            }
 
-            string[] fileNames = Directory.GetFiles(path, "*.dll");
-
-            PrintInfoToConsole(fileNames);
+            Console.Write("Press any key to Exit");
             Console.ReadKey();
         }
 
-        public static void PrintInfoToConsole(string[] filePaths)
+        private static void PrintInfoToConsole(string[] filePaths)
         {
-            if (filePaths != null)
+            if (filePaths.Length != 0)
             {
                 foreach(string path in filePaths)
                 {
                     List<ClassInfo> classes = Parse(path);
+                    
+                    //Sort by Class.Name
+                    classes.Sort(delegate(ClassInfo firstClassInfo, ClassInfo secondClassInfo)
+                    {
+                        return firstClassInfo.Class.Name.CompareTo(secondClassInfo.Class.Name);
+                    });
 
                     foreach (ClassInfo classInfo in classes)
                     {
                         Console.WriteLine();
-                        Console.WriteLine($"Class " + classInfo.Class.Name);
+                        Console.WriteLine("Class " + classInfo.Class.Name);
                         Console.WriteLine();
 
                         foreach (MethodInfo method in classInfo.PrivateMethods)
@@ -60,19 +79,19 @@ namespace TestTask66bit
         /// </summary>
         /// <param name="pathToFile"></param>
         /// <returns></returns>
-        public static List<ClassInfo> Parse(string pathToFile)
+        private static List<ClassInfo> Parse(string pathToFile)
         {
             List<ClassInfo> result = new List<ClassInfo>();
 
             List<Type> classes = GetClassInfos(pathToFile);
 
-            for (int i = 0; i < classes.Count; i++)
+            foreach (var type in classes)
             {
                 ClassInfo classInfo = new ClassInfo
                 {
-                    Class = classes[i],
-                    PrivateMethods = GetMethodInfos(classes[i], true),
-                    PublicMethods = GetMethodInfos(classes[i])
+                    Class = type,
+                    PrivateMethods = GetMethodInfos(type, true),
+                    PublicMethods = GetMethodInfos(type)
                 };
                 result.Add(classInfo);
             }
@@ -87,15 +106,13 @@ namespace TestTask66bit
         /// <remarks>
         /// if getPrivate is true returns both private and protected methods
         /// </remarks>
-        public static MethodInfo[] GetMethodInfos(Type classType, bool getPrivate = false)
+        private static MethodInfo[] GetMethodInfos(Type classType, bool getPrivate = false)
         {
-            MethodInfo[] methodInfos;
-
             try
             {
                 if (!classType.IsClass) { throw new ApplicationException($"Object {classType} is not a class"); }
 
-                methodInfos = getPrivate == true ? classType.GetMethods(BindingFlags.NonPublic | BindingFlags.Instance) : classType.GetMethods();
+                var methodInfos = getPrivate ? classType.GetMethods(BindingFlags.NonPublic | BindingFlags.Instance) : classType.GetMethods();
 
                 return methodInfos;
             }
@@ -111,7 +128,7 @@ namespace TestTask66bit
         /// </summary>
         /// <param name="pathToFile"></param>
         /// <returns></returns>
-        public static List<Type> GetClassInfos(string pathToFile)
+        private static List<Type> GetClassInfos(string pathToFile)
         {
             if (string.IsNullOrEmpty(pathToFile))
             {
@@ -121,13 +138,19 @@ namespace TestTask66bit
             Assembly assembly = Assembly.LoadFile(pathToFile);
 
             List<Type> foundClasses = new List<Type>();
-            Type[] foundTypes; 
-            
-            try { foundTypes = assembly.GetTypes(); }
+            List<Type> foundTypes;
+
+            try
+            {
+                foundTypes = assembly.GetTypes().ToList();
+            }
             // The array returned by the Types property of ReflectionTypeLoadException contains a Type object for each type that was loaded,
             // and a null object for each type that failed to load
-            catch (ReflectionTypeLoadException e) { foundTypes = e.Types; }
-
+            catch (ReflectionTypeLoadException e)
+            {
+                foundTypes = e.Types.ToList();
+            }
+            
             foreach (Type type in foundTypes)
             {
                 if (type != null)
